@@ -52,20 +52,34 @@ Fail when `/` or the logs show `operation not permitted` on `unshare` or `clone`
 
 ## Result
 
+The spike failed. k3s never reached Ready, and the pause pod never started. Do not submit a k3s template. The next design is a control plane plus virtual-kubelet workers, with cluster state in Aiven PostgreSQL.
+
 ### Local preflight (2026-10-02)
 
-Host port 8080 was already allocated, so the container was published on `18080:8080`. No `--privileged` flag, no host cgroup mount.
+Host port 8080 was already allocated, so the container was published on `18080:8080`. No `--privileged` flag and no host cgroup mount.
 
-`GET /` stayed up. Relevant diagnostics:
+`GET /` stayed up. `unshare --user` failed with `Operation not permitted`. cgroup type was `cgroup2fs` with an empty `cgroup.subtree_control`. `/dev/fuse` and `/dev/net/tun` were absent. k3s logged:
 
-- `unshare --user` failed: `Operation not permitted`.
-- cgroup filesystem type is `cgroup2fs`, but `cgroup.subtree_control` is empty.
-- `/dev/fuse` and `/dev/net/tun` are absent, so the snapshotter is `native`.
-- k3s log: `failed to start the child: fork/exec /proc/self/exe: operation not permitted`, then `k3s exited 1`.
-- `GET /ready` returned 503. The pause pod was not created.
+```text
+failed to start the child: fork/exec /proc/self/exe: operation not permitted
+k3s exited 1
+```
 
-This Mac Docker preflight does not decide the spike. Aiven Runtime is the pass/fail.
+`GET /ready` returned 503. This Mac Docker result does not decide the spike.
 
-### Aiven Runtime
+### Aiven Runtime (2026-10-02)
 
-Pending deploy.
+Deployed `k3s-rootless-spike` in project `steve-hutchinson-test`, plan `startup-100-2048`, cloud `aws-us-east-1`, from `https://github.com/Steve-Aiven/aiven-k8s-runtime` branch `main`. The build succeeded and the service reached RUNNING. Public diagnostics:
+
+`https://01a0fd23-ab36-748f-960d-e450b41598e3-8080.amer-1.aiven.app/`
+
+On Aiven, `unshare --user` printed `userns-ok`. That is different from the local Docker preflight. The node still did not start. `/ready` returned 503. Runtime log:
+
+```text
+time="2026-10-02T15:04:22Z" level=fatal msg="expected sysctl value \"net.ipv4.ip_forward\" to be \"1\", got \"0\"; try adding \"net.ipv4.ip_forward=1\" to /etc/sysctl.conf and running `sudo sysctl --system`"
+k3s exited 1
+```
+
+Other host facts from the same page: `/dev/fuse` and `/dev/net/tun` are missing, so the snapshotter is `native`. cgroup v2 controllers `cpu memory pids` are visible, and `cgroup.subtree_control` is empty, so those controllers are not delegated to child cgroups. The process is root inside the container, but the capability bounding set is `00000000800405fb` (no `CAP_NET_ADMIN`, no `CAP_SYS_ADMIN`), which is why the sysctl cannot be flipped from the entrypoint.
+
+The service is still RUNNING at about $0.07 per hour. Delete it in the Aiven console when you are done reading the logs.

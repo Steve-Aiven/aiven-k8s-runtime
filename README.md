@@ -82,4 +82,4 @@ k3s exited 1
 
 Other host facts from the same page: `/dev/fuse` and `/dev/net/tun` are missing, so the snapshotter is `native`. cgroup v2 controllers `cpu memory pids` are visible, and `cgroup.subtree_control` is empty, so those controllers are not delegated to child cgroups. The process is root inside the container, but the capability bounding set is `00000000800405fb` (no `CAP_NET_ADMIN`, no `CAP_SYS_ADMIN`), which is why the sysctl cannot be flipped from the entrypoint.
 
-The service is still RUNNING at about $0.07 per hour. Delete it in the Aiven console when you are done reading the logs.
+The service was terminated on 2026-10-02 after the spike.
